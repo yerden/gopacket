@@ -66,6 +66,79 @@ type DecodingLayerContainer interface {
 	LayersDecoder(first LayerType, df DecodeFeedback) DecodingLayerFunc
 }
 
+// DecodingLayerStack is a container which consists of stacked
+// DecodingLayer-s and a fallback container. The decoding process is
+// therefore divided in two stages. First, layers are decoded by
+// predefined number of layers in the stack and then the rest of
+// layers are decoded by the fallback.
+//
+// This may be useful if there are some predefined layers at the top
+// header of a packet and they may be decoded without searching for a
+// layer.
+type DecodingLayerStack struct {
+	Fallback DecodingLayerContainer
+	Stack    []DecodingLayer
+	Idx      int
+}
+
+// Put implements DecodingLayerContainer interface.
+func (dl DecodingLayerStack) Put(d DecodingLayer) DecodingLayerContainer {
+	dl.Fallback = dl.Fallback.Put(d)
+	return dl
+}
+
+// Decoder implements DecodingLayerContainer interface.
+func (dl DecodingLayerStack) Decoder(typ LayerType) (DecodingLayer, bool) {
+	return dl.Fallback.Decoder(typ)
+}
+
+// LayersDecoder implements DecodingLayerContainer interface.
+func (dl DecodingLayerStack) LayersDecoder(first LayerType, df DecodeFeedback) DecodingLayerFunc {
+	if len(dl.Stack) == 0 {
+		return dl.Fallback.LayersDecoder(first, df)
+	}
+
+	if d := dl.Stack[0]; !d.CanDecode().Contains(first) {
+		return dl.Fallback.LayersDecoder(first, df)
+	}
+
+	var fallback DecodingLayerFunc
+	myDecoded := make([]LayerType, 10)
+	return func(data []byte, decoded *[]LayerType) (LayerType, error) {
+		*decoded = (*decoded)[:0] // Truncated decoded layers.
+		typ := first
+		d := dl.Stack[0]
+		i := 0
+		for dl.Idx = 0; ; dl.Idx++ {
+			if err := d.DecodeFromBytes(data, df); err != nil {
+				return LayerTypeZero, err
+			}
+			*decoded = append(*decoded, typ)
+			typ = d.NextLayerType()
+			if data = d.LayerPayload(); len(data) == 0 {
+				return LayerTypeZero, nil
+			}
+			if i++; i >= len(dl.Stack) {
+				// done here; goto fallback container
+				break
+			}
+			if d = dl.Stack[i]; !d.CanDecode().Contains(typ) {
+				return typ, nil
+			}
+		}
+
+		if fallback == nil {
+			// typ should be the same for every packet
+			// so we may compute LayersDecoder only once
+			fallback = dl.Fallback.LayersDecoder(typ, df)
+		}
+
+		typ, err := fallback(data, &myDecoded)
+		*decoded = append(*decoded, myDecoded...)
+		return typ, err
+	}
+}
+
 // DecodingLayerSparse is a sparse array-based implementation of
 // DecodingLayerContainer. Each DecodingLayer is addressed in an
 // allocated slice by LayerType value itself. Though this is the
