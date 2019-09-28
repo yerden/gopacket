@@ -41,12 +41,7 @@ static void set_rss_func(struct snf_rss_params *rss, rss_hash_fn *fn, void *ctx)
 import "C"
 
 import (
-	"bytes"
-	"net"
-	// "os"
-	// "os/signal"
 	"reflect"
-	"syscall"
 	"time"
 	"unsafe"
 )
@@ -149,24 +144,6 @@ const (
 	RxDuplicate = C.SNF_F_RX_DUPLICATE
 )
 
-// IfAddrs is a structure to map Interfaces to Sniffer port numbers.
-type IfAddrs struct {
-	// interface name, as in ifconfig
-	Name string
-	// snf port number
-	PortNum uint32
-	// Maximum RX rings supported
-	MaxRings int
-	// MAC address
-	MACAddr [6]byte
-	// Maximum TX injection handles supported
-	MaxInject int
-	// Underlying port's state (DOWN or UP)
-	LinkState int
-	// Link Speed (bps)
-	LinkSpeed uint64
-}
-
 // RecvReq is a descriptor of a packet received on a data ring.
 type RecvReq C.struct_snf_recv_req
 
@@ -231,84 +208,6 @@ func dur2ms(d time.Duration) C.int {
 // Init initializes the sniffer library.
 func Init() error {
 	return retErr(C.snf_init(C.SNF_VERSION_API))
-}
-
-func cvtIfAddrs(ifa *C.struct_snf_ifaddrs) *IfAddrs {
-	return &IfAddrs{
-		Name:      C.GoString(ifa.snf_ifa_name),
-		PortNum:   uint32(ifa.snf_ifa_portnum),
-		MaxRings:  int(ifa.snf_ifa_maxrings),
-		MACAddr:   *(*[6]byte)(unsafe.Pointer(&ifa.snf_ifa_macaddr[0])),
-		MaxInject: int(ifa.snf_ifa_maxinject),
-		LinkState: int(ifa.snf_ifa_link_state),
-		LinkSpeed: uint64(ifa.snf_ifa_link_speed),
-	}
-}
-
-// GetIfAddrs gets a list of Sniffer-capable ethernet devices.
-func GetIfAddrs() (res []IfAddrs, err error) {
-	var p *C.struct_snf_ifaddrs
-	if err = retErr(C.snf_getifaddrs(&p)); err == nil {
-		defer C.snf_freeifaddrs(p)
-		for ; p != nil; p = p.snf_ifa_next {
-			res = append(res, *cvtIfAddrs(p))
-		}
-	}
-	return
-}
-
-func getIfAddr(isfit func(*C.struct_snf_ifaddrs) bool) (ifa *IfAddrs, err error) {
-	var p *C.struct_snf_ifaddrs
-	if err = retErr(C.snf_getifaddrs(&p)); err == nil {
-		defer C.snf_freeifaddrs(p)
-		for ; p != nil; p = p.snf_ifa_next {
-			if isfit(p) {
-				return cvtIfAddrs(p), nil
-			}
-		}
-		err = syscall.Errno(syscall.ENODEV)
-	}
-	return
-}
-
-// GetIfAddrByHW gets a Sniffer-capable ethernet devices with matching
-// MAC address.
-func GetIfAddrByHW(addr net.HardwareAddr) (*IfAddrs, error) {
-	return getIfAddr(func(ifa *C.struct_snf_ifaddrs) bool {
-		mac := *(*[6]byte)(unsafe.Pointer(&ifa.snf_ifa_macaddr[0]))
-		return bytes.Equal(addr, mac[:])
-	})
-}
-
-// GetIfAddrByName returns a Sniffer-capable ethernet devices with matching
-// name.
-func GetIfAddrByName(name string) (*IfAddrs, error) {
-	return getIfAddr(func(ifa *C.struct_snf_ifaddrs) bool {
-		return C.GoString(ifa.snf_ifa_name) == name
-	})
-}
-
-// PortMask returns a mask of all Sniffer-capable ports that
-// have their link state set to UP and a mask
-// of all Sniffer-capable ports.
-// The least significant bit represents port 0.
-//
-// ENODEV is returned in case of an error
-// obtaining port information.
-func PortMask() (linkup, valid uint32, err error) {
-	var p *C.struct_snf_ifaddrs
-	if err = retErr(C.snf_getifaddrs(&p)); err == nil {
-		defer C.snf_freeifaddrs(p)
-		for ; p != nil; p = p.snf_ifa_next {
-			ifa := cvtIfAddrs(p)
-			bit := uint32(1) << ifa.PortNum
-			valid |= bit
-			if ifa.LinkState == LinkUp {
-				linkup |= bit
-			}
-		}
-	}
-	return
 }
 
 // SetAppID sets the application ID.
