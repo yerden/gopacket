@@ -8,77 +8,92 @@ import "C"
 import (
 	"bytes"
 	"net"
+	"runtime"
 	"unsafe"
 )
 
 // IfAddrs is a structure to map Interfaces to Sniffer port numbers.
+// It can be copied by value.
 type IfAddrs struct {
-	// interface name, as in ifconfig
-	Name string
-	// snf port number
-	PortNum uint32
-	// Maximum RX rings supported
-	MaxRings int
-	// MAC address
-	MACAddr [6]byte
-	// Maximum TX injection handles supported
-	MaxInject int
-	// Underlying port's state (DOWN or UP)
-	LinkState int
-	// Link Speed (bps)
-	LinkSpeed uint64
-}
-
-func cvtIfAddrs(ifa *C.struct_snf_ifaddrs) *IfAddrs {
-	return &IfAddrs{
-		Name:      C.GoString(ifa.snf_ifa_name),
-		PortNum:   uint32(ifa.snf_ifa_portnum),
-		MaxRings:  int(ifa.snf_ifa_maxrings),
-		MACAddr:   *(*[6]byte)(unsafe.Pointer(&ifa.snf_ifa_macaddr[0])),
-		MaxInject: int(ifa.snf_ifa_maxinject),
-		LinkState: int(ifa.snf_ifa_link_state),
-		LinkSpeed: uint64(ifa.snf_ifa_link_speed),
-	}
+	head **C.struct_snf_ifaddrs
+	ifa  *C.struct_snf_ifaddrs
 }
 
 // GetIfAddrs gets a list of Sniffer-capable ethernet devices.
-func GetIfAddrs() (res []IfAddrs, err error) {
-	var head *C.struct_snf_ifaddrs
-	if err = retErr(C.snf_getifaddrs(&head)); err == nil {
-		for p := head; p != nil; p = p.snf_ifa_next {
-			res = append(res, *cvtIfAddrs(p))
+func GetIfAddrs() ([]IfAddrs, error) {
+	var res []IfAddrs
+	head := new(*C.struct_snf_ifaddrs)
+	err := retErr(C.snf_getifaddrs(head))
+	if err == nil {
+		runtime.SetFinalizer(head, func(head **C.struct_snf_ifaddrs) {
+			C.snf_freeifaddrs(*head)
+		})
+		for p := *head; p != nil; p = p.snf_ifa_next {
+			res = append(res, IfAddrs{head, p})
 		}
-		C.snf_freeifaddrs(head)
 	}
-	return
+	return res, err
+}
+
+// Name returns interface name, as in ifconfig.
+func (p *IfAddrs) Name() string {
+	return C.GoString(p.ifa.snf_ifa_name)
+}
+
+// PortNum returns port's index in SNF library.
+func (p *IfAddrs) PortNum() uint32 {
+	return uint32(p.ifa.snf_ifa_portnum)
+}
+
+// MaxRings returns maximum RX rings supported by the port.
+func (p *IfAddrs) MaxRings() int {
+	return int(p.ifa.snf_ifa_maxrings)
+}
+
+// MACAddr returns MAC address of the port.
+func (p *IfAddrs) MACAddr() []byte {
+	x := *(*[6]byte)(unsafe.Pointer(&p.ifa.snf_ifa_macaddr[0]))
+	return x[:]
+}
+
+// MaxInject returns maximum TX injection handles supported by the
+// port.
+func (p *IfAddrs) MaxInject() int {
+	return int(p.ifa.snf_ifa_maxinject)
+}
+
+// LinkState returns underlying port's state (DOWN or UP).
+func (p *IfAddrs) LinkState() int {
+	return int(p.ifa.snf_ifa_link_state)
+}
+
+// LinkSpeed returns Link Speed in bps.
+func (p *IfAddrs) LinkSpeed() uint64 {
+	return uint64(p.ifa.snf_ifa_link_speed)
+}
+
+func lookupIfAddr(fn func(ifa *IfAddrs) bool) (*IfAddrs, error) {
+	list, err := GetIfAddrs()
+	if err == nil {
+		for _, ifa := range list {
+			if fn(&ifa) {
+				return &ifa, nil
+			}
+		}
+	}
+	return nil, err
 }
 
 // GetIfAddrByHW gets a Sniffer-capable ethernet devices with matching
 // MAC address.
 func GetIfAddrByHW(addr net.HardwareAddr) (*IfAddrs, error) {
-	list, err := GetIfAddrs()
-	if err == nil {
-		for _, ifa := range list {
-			if bytes.Equal(addr, ifa.MACAddr[:]) {
-				return &ifa, nil
-			}
-		}
-	}
-	return nil, err
+	return lookupIfAddr(func(ifa *IfAddrs) bool { return bytes.Equal(addr, ifa.MACAddr()) })
 }
 
 // GetIfAddrByName returns a Sniffer-capable ethernet devices with matching
 // name.
 func GetIfAddrByName(name string) (*IfAddrs, error) {
-	list, err := GetIfAddrs()
-	if err == nil {
-		for _, ifa := range list {
-			if name == ifa.Name {
-				return &ifa, nil
-			}
-		}
-	}
-	return nil, err
+	return lookupIfAddr(func(ifa *IfAddrs) bool { return name == ifa.Name() })
 }
 
 // PortMask returns a mask of all Sniffer-capable ports that
@@ -91,10 +106,9 @@ func GetIfAddrByName(name string) (*IfAddrs, error) {
 func PortMask() (linkup, valid uint32, err error) {
 	list, err := GetIfAddrs()
 	if err == nil {
-		for i, _ := range list {
-			ifa := &list[i]
-			bit := uint32(1) << ifa.PortNum
-			if valid |= bit; ifa.LinkState == LinkUp {
+		for _, ifa := range list {
+			bit := uint32(1) << ifa.PortNum()
+			if valid |= bit; ifa.LinkState() == LinkUp {
 				linkup |= bit
 			}
 		}
