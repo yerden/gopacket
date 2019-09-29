@@ -176,7 +176,7 @@ func TestApp(t *testing.T) {
 			wg.Add(1)
 			go func(r *snf.Ring, counter *uint64) {
 				defer wg.Done()
-				rcv := r.NewReader(time.Second, 256)
+				rcv := snf.NewReader(r, time.Second, 256)
 				defer rcv.Free()
 
 				ch := make(chan os.Signal, 1)
@@ -301,7 +301,8 @@ func ExampleRingReader() {
 	defer r.Close()
 
 	// abstract ring operations in a RingReader object
-	recv := r.NewReader(
+	recv := snf.NewReader(
+		r,           // Underlying ring
 		time.Second, // timeout for receiving new packet
 		256,         // how many packets to receive in one call
 	)

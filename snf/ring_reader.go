@@ -40,12 +40,10 @@ type RingReader struct {
 // want to use AggregatePortMask feature, please use burst==1. In that
 // case, RingReader will utilize snf_ring_recv() which works in both
 // cases.
-func (r *Ring) NewReader(timeout time.Duration, burst int) *RingReader {
-	reqs := make([]RecvReq, burst)
-
+func NewReader(r *Ring, timeout time.Duration, burst int) *RingReader {
 	return &RingReader{
 		Ring:    r,
-		reqs:    reqs,
+		reqs:    make([]RecvReq, burst),
 		timeout: timeout,
 		index:   0,
 	}
