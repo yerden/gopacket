@@ -175,12 +175,6 @@ func (req *RecvReq) HwHash() uint32 {
 	return uint32(req.hw_hash)
 }
 
-// Handle encapsulates a device handle.
-type Handle C.struct_snf_handle
-
-// Ring encapsulates a device's ring handle.
-type Ring C.struct_snf_ring
-
 // Receive timeout to control how the function blocks for the
 // next packet.
 func dur2ms(d time.Duration) C.int {

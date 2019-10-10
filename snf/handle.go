@@ -23,6 +23,9 @@ import (
 	"unsafe"
 )
 
+// Handle encapsulates a device handle.
+type Handle C.struct_snf_handle
+
 // snf_open() options container
 type handlerOpts struct {
 	numRings     C.int

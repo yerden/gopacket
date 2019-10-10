@@ -10,6 +10,9 @@ import (
 	"unsafe"
 )
 
+// Ring encapsulates a device's ring handle.
+type Ring C.struct_snf_ring
+
 // RingPortInfo is a receive ring information.
 type RingPortInfo struct {
 	// Single ring
