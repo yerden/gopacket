@@ -181,9 +181,8 @@ func handle(h *Handle) C.snf_handle_t {
 // that reads state kept in kernel host memory (i.e. no PCI bus
 // reads).
 func (h *Handle) LinkState() (int, error) {
-	var res uint32
-	err := retErr(C.snf_get_link_state(handle(h), &res))
-	return int(res), err
+	out := C.get_link_state(handle(h))
+	return intErr(&out)
 }
 
 // LinkSpeed gets link speed on opened handle.
@@ -194,9 +193,8 @@ func (h *Handle) LinkState() (int, error) {
 // that reads state kept in kernel host memory (i.e. no PCI bus
 // reads).
 func (h *Handle) LinkSpeed() (uint64, error) {
-	var res C.ulong
-	err := retErr(C.snf_get_link_speed(handle(h), &res))
-	return uint64(res), err
+	out := C.get_link_speed(handle(h))
+	return uint64Err(&out)
 }
 
 // Start packet capture on a port.  Packet capture is only started if
@@ -296,7 +294,6 @@ func (h *Handle) OpenRingID(id int) (ring *Ring, err error) {
 // call that reads state kept in kernel host memory (i.e. no PCI bus
 // reads).
 func (h *Handle) TimeSourceState() (int, error) {
-	var res uint32
-	err := retErr(C.snf_get_timesource_state(handle(h), &res))
-	return int(res), err
+	out := C.get_timesource_state(handle(h))
+	return intErr(&out)
 }

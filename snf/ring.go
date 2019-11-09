@@ -196,9 +196,9 @@ func (r *Ring) Recv(timeout time.Duration, req *RecvReq) error {
 // filled in reqs and an error if any.
 func (r *Ring) RecvMany(timeout time.Duration, reqs []RecvReq, qinfo *RingQInfo) (int, error) {
 	qi := (*C.struct_snf_ring_qinfo)(qinfo)
-	var n C.int
-	return int(n), retErr(C.snf_ring_recv_many(ring(r), dur2ms(timeout),
-		(*C.struct_snf_recv_req)(&reqs[0]), C.int(len(reqs)), &n, qi))
+	out := C.ring_recv_many(ring(r), dur2ms(timeout),
+		(*C.struct_snf_recv_req)(&reqs[0]), C.int(len(reqs)), qi)
+	return intErr(&out)
 }
 
 // ReturnMany returns memory of given packets back to the data ring.
