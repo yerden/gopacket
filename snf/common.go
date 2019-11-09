@@ -12,6 +12,12 @@ import (
 	"unsafe"
 )
 
+/*
+#cgo CFLAGS: -I/opt/snf/include
+#cgo LDFLAGS: -L/opt/snf/lib -lsnf -lpcap
+#include <snf.h>
+#include "wrapper.h"
+*/
 import "C"
 
 func retErr(x C.int) error {
@@ -29,4 +35,12 @@ func array2Slice(ptr uintptr, length int) (data []byte) {
 	sh.Len = length
 	sh.Cap = length
 	return
+}
+
+func intErr(out *C.struct_compound_int) (int, error) {
+	return int(*(*C.int)(unsafe.Pointer(out))), retErr(out.rc)
+}
+
+func uint64Err(out *C.struct_compound_int) (uint64, error) {
+	return uint64(*(*C.ulong)(unsafe.Pointer(out))), retErr(out.rc)
 }

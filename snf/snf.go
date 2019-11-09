@@ -22,21 +22,10 @@ limitations and so on.
 package snf
 
 /*
+#cgo CFLAGS: -I/opt/snf/include
+#cgo LDFLAGS: -L/opt/snf/lib -lsnf -lpcap
 #include <snf.h>
-
-static void set_rss_flags(struct snf_rss_params *rss, int flags) {
-  rss->mode = SNF_RSS_FLAGS;
-  rss->params.rss_flags = flags;
-}
-
-typedef int (rss_hash_fn)(struct snf_recv_req *, void *, uint32_t *);
-
-static void set_rss_func(struct snf_rss_params *rss, rss_hash_fn *fn, void *ctx)
-{
-  rss->mode = SNF_RSS_FUNCTION;
-  rss->params.rss_function.rss_hash_fn = fn;
-  rss->params.rss_function.rss_context = ctx;
-}
+#include "wrapper.h"
 */
 import "C"
 
