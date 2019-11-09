@@ -86,12 +86,20 @@ func lookupIfAddr(fn func(ifa *IfAddrs) bool) (*IfAddrs, error) {
 
 // GetIfAddrByHW gets a Sniffer-capable ethernet devices with matching
 // MAC address.
+//
+// Found IfAddr struct is returned. If not found, (nil, nil) will be returned.
+// If unable to retrieve interfaces from SNF, (nil, err) where err is
+// correspoding error will be returned.
 func GetIfAddrByHW(addr net.HardwareAddr) (*IfAddrs, error) {
 	return lookupIfAddr(func(ifa *IfAddrs) bool { return bytes.Equal(addr, ifa.MACAddr()) })
 }
 
 // GetIfAddrByName returns a Sniffer-capable ethernet devices with matching
 // name.
+//
+// Found IfAddr struct is returned. If not found, (nil, nil) will be returned.
+// If unable to retrieve interfaces from SNF, (nil, err) where err is
+// correspoding error will be returned.
 func GetIfAddrByName(name string) (*IfAddrs, error) {
 	return lookupIfAddr(func(ifa *IfAddrs) bool { return name == ifa.Name() })
 }
