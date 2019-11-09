@@ -7,6 +7,7 @@
 package snf_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -18,15 +19,14 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/snf"
+	"github.com/yerden/gopacket/snf"
 )
 
-func newAssert(t *testing.T, fail bool) func(bool) {
-	return func(expected bool) {
+func newAssert(t testing.TB, fail bool) func(bool, ...interface{}) {
+	return func(expected bool, v ...interface{}) {
 		if !expected {
 			t.Helper()
-			t.Error("Something's not right")
-			if fail {
+			if t.Error(v...); fail {
 				t.FailNow()
 			}
 		}
@@ -77,18 +77,18 @@ func TestGetIfAddrs(t *testing.T) {
 	assertFail(len(ifa) > 0)
 
 	for _, iface := range ifa {
-		iface_got, err := snf.GetIfAddrByName(iface.Name)
+		iface_got, err := snf.GetIfAddrByName(iface.Name())
 		assertFail(err == nil)
-		assert(iface == *iface_got)
+		assert(iface.Name() == iface_got.Name())
 
-		iface_got, err = snf.GetIfAddrByHW(iface.MACAddr[:])
+		iface_got, err = snf.GetIfAddrByHW(iface.MACAddr())
 		assertFail(err == nil)
-		assert(iface == *iface_got)
+		assert(bytes.Equal(iface.MACAddr(), iface_got.MACAddr()))
 	}
-	_, err = snf.GetIfAddrByName("some_eth0")
-	assert(err == syscall.ENODEV)
-	_, err = snf.GetIfAddrByHW([]byte{0, 1, 2, 3, 4, 5})
-	assert(err == syscall.ENODEV)
+	iface, err := snf.GetIfAddrByName("some_eth0")
+	assert(err == nil && iface == nil)
+	iface, err = snf.GetIfAddrByHW([]byte{0, 1, 2, 3, 4, 5})
+	assert(err == nil && iface == nil)
 }
 
 func TestHandleRing(t *testing.T) {
@@ -104,7 +104,7 @@ func TestHandleRing(t *testing.T) {
 	assert(err == nil)
 	assert(len(ifa) > 0)
 
-	portnum := ifa[0].PortNum
+	portnum := ifa[0].PortNum()
 	h, err := snf.OpenHandleWithOpts(portnum)
 	assert(err == nil)
 	assert(h != nil)
@@ -153,7 +153,7 @@ func TestApp(t *testing.T) {
 	counters := make([]uint64, len(ifa))
 	// handle all ports
 	for i := range ifa {
-		h, err := snf.OpenHandleWithOpts(ifa[i].PortNum)
+		h, err := snf.OpenHandleWithOpts(ifa[i].PortNum())
 		assert(err == nil)
 		assert(h != nil)
 		defer h.Close()
